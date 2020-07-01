@@ -109,74 +109,17 @@ final class Router(config: BundleConfig,
 
   private def transformResponse(response: ServerResponse): Future[HttpResponse] = {
 
-    response match {
+    val status = StatusCode.int2StatusCode(response.getStatusCode)
 
-      case OkServerResponse(headers, entityTag, entity) => {
-
-        convertFromApiEntity(assetFs, cacheFs, entity, identity)
-          .map {
-            case (httpEntity, checksum) =>
-
-              HttpResponse(
-                status = StatusCodes.OK,
-                headers = convertFromApiHeaders(headers.toSeq, entityTag, checksum),
-                entity = httpEntity
-              )
-          }
+    convertFromApiEntity(assetFs, cacheFs, response.getEntity, identity)
+      .map {
+        case (httpEntity, checksum) =>
+          HttpResponse(
+            status = status.intValue,
+            headers = convertFromApiHeaders(response.getHeaders.toSeq, response.getEntityTag, checksum),
+            entity = httpEntity
+          )
       }
-
-      case CreatedServerResponse(headers, entityTag, entity) => {
-
-        convertFromApiEntity(assetFs, cacheFs, entity, identity)
-          .map {
-            case (httpEntity, checksum) =>
-
-              HttpResponse(
-                status = StatusCodes.Created,
-                headers = convertFromApiHeaders(headers.toSeq, entityTag, checksum),
-                entity = httpEntity
-              )
-          }
-      }
-
-      case AcceptedServerResponse(headers, entity) => {
-
-        convertFromApiEntity(assetFs, cacheFs, entity, identity)
-          .map {
-            case (httpEntity, checksum) =>
-
-              HttpResponse(
-                status = StatusCodes.Accepted,
-                headers = convertFromApiHeaders(headers.toSeq, None, checksum),
-                entity = httpEntity
-              )
-          }
-      }
-
-      case NoContentServerResponse(headers) => {
-
-        Future.successful(HttpResponse(
-          status = StatusCodes.NoContent,
-          headers = convertFromApiHeaders(headers.toSeq, None, None)
-        ))
-      }
-
-      case FoundServerResponse(headers, location) => {
-
-        Future.successful(HttpResponse(
-          status = StatusCodes.Found,
-          headers = convertFromApiHeaders(headers.toSeq :+ ("Location" -> location), None, None)
-        ))
-      }
-
-      case NotModifiedServerResponse(headers, entityTag) => {
-
-        Future.successful(HttpResponse(
-          status = StatusCodes.NotModified,
-          headers = convertFromApiHeaders(headers.toSeq, Some(entityTag), None)
-        ))
-      }
-    }
   }
 
   private def handleErrors(e: Exception): HttpResponse =

@@ -6,8 +6,8 @@ import systems.opalia.interfaces.soa.ClientFaultException
 
 package object errors {
 
-  sealed abstract class HttpException(statusCode: Int,
-                                      data: ServerErrorData)
+  abstract class HttpException(statusCode: Int,
+                               data: ServerErrorData)
     extends ClientFaultException(data.messages.mkString("\n")) {
 
     def getStatusCode: Int =

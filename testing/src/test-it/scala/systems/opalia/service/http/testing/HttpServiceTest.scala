@@ -60,14 +60,14 @@ class HttpServiceTest
       request.handleEntity().map {
         entity =>
 
-          OkServerResponse(entity = entity)
+          ServerResponse.ok(entity = entity)
       }
 
     def htmlAnswer(request: ServerRequest): Future[ServerResponse] =
       request.handleEntity().map {
         _ =>
 
-          OkServerResponse(entity = CharacterEntity(contentType = htmlContentType, body = htmlContent))
+          ServerResponse.ok(entity = CharacterEntity(contentType = htmlContentType, body = htmlContent))
       }
 
     val uri1 =
@@ -163,7 +163,7 @@ class HttpServiceTest
 
           request.headers.exists(_._1 == "X-Content-Checksum") shouldBe false
 
-          OkServerResponse(entity = entity)
+          ServerResponse.ok(entity = entity)
       }
 
     def echo(request: ServerRequest): Future[ServerResponse] =
@@ -172,7 +172,7 @@ class HttpServiceTest
 
           request.headers.exists(_._1 == "X-Content-Checksum") shouldBe true
 
-          OkServerResponse(entity = entity)
+          ServerResponse.ok(entity = entity)
       }
 
     // create URIs for all routes
@@ -433,7 +433,7 @@ class HttpServiceTest
             messages = List("Access Denied.")
           ))
 
-        OkServerResponse(entity = CharacterEntity(body = "This is the test message."))
+        ServerResponse.ok(entity = CharacterEntity(body = "This is the test message."))
       }
 
     val route = httpService.newRoute("/auth", Method.get, EntityRequirement.None, fetch)
@@ -515,7 +515,7 @@ class HttpServiceTest
             messages = List("Access Denied.")
           ))
 
-        OkServerResponse(entity = CharacterEntity(body = "This is the test message."))
+        ServerResponse.ok(entity = CharacterEntity(body = "This is the test message."))
       }
 
     val route = httpService.newRoute("/auth", Method.get, EntityRequirement.None, fetch)
@@ -598,14 +598,14 @@ class HttpServiceTest
 
         if (!getEntityTag(request.headers.toSeq, clientSide = false).contains(entityId)) {
 
-          OkServerResponse(
+          ServerResponse.ok(
             entityTag = Some(EntityTag(entityId.toString)),
             entity = CharacterEntity(body = "This is the test message.")
           )
 
         } else {
 
-          NotModifiedServerResponse(entityTag = EntityTag(entityId.toString))
+          ServerResponse.notModified(entityTag = EntityTag(entityId.toString))
         }
       }
 
@@ -665,7 +665,7 @@ class HttpServiceTest
     def fetch(request: ServerRequest): Future[ServerResponse] =
       Future {
 
-        OkServerResponse()
+        ServerResponse.ok()
       }
 
     val route = httpService.newRoute("/resource", Method.get, EntityRequirement.None, fetch)
