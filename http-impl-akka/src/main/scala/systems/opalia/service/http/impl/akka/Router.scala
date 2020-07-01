@@ -9,7 +9,6 @@ import scala.concurrent._
 import systems.opalia.commons.net.PathMatching
 import systems.opalia.interfaces.json.JsonAst
 import systems.opalia.interfaces.logging.Logger
-import systems.opalia.interfaces.soa.ClientFaultException
 import systems.opalia.interfaces.vfs.FileSystem
 import systems.opalia.service.http.api._
 import systems.opalia.service.http.api.errors._
@@ -192,7 +191,7 @@ final class Router(config: BundleConfig,
         val entity =
           JsonEntity(createErrorBody(
             status.intValue,
-            createErrorNames(e),
+            e.getClass.getSimpleName,
             status.reason :: e.getMessages.toList,
             e.getDetails
           ))
@@ -215,8 +214,8 @@ final class Router(config: BundleConfig,
         val entity =
           JsonEntity(createErrorBody(
             status.intValue,
-            createErrorNames(e),
-            status.reason :: "Execution timeout occurred." :: Nil,
+            e.getClass.getSimpleName,
+            status.reason :: status.defaultMessage :: Nil,
             JsonAst.JsonNull
           ))
 
@@ -237,8 +236,8 @@ final class Router(config: BundleConfig,
         val entity =
           JsonEntity(createErrorBody(
             status.intValue,
-            createErrorNames(e),
-            status.reason :: "Unexpected server error occurred." :: Nil,
+            "InternalServerError",
+            status.reason :: status.defaultMessage :: Nil,
             JsonAst.JsonNull
           ))
 
@@ -251,42 +250,17 @@ final class Router(config: BundleConfig,
     }
 
   private def createErrorBody(statusCode: Int,
-                              names: Seq[String],
+                              name: String,
                               messages: Seq[String],
                               details: JsonAst.JsonValue): JsonAst.JsonObject = {
 
     JsonAst.JsonObject(ListMap(
       "code" -> JsonAst.JsonNumberInt(statusCode),
       "error" -> JsonAst.JsonObject(ListMap(
-        "name" -> JsonAst.JsonString(names.toIndexedSeq.mkString(":")),
+        "name" -> JsonAst.JsonString(name),
         "messages" -> JsonAst.JsonArray(messages.toIndexedSeq.map(JsonAst.JsonString)),
         "details" -> details
       ))
     ))
-  }
-
-  private def createErrorNames(error: Throwable): Seq[String] = {
-
-    error match {
-      case e: HttpException => {
-
-        var current: Class[_] = e.getClass
-
-        Iterator.continually {
-
-          val old = current
-          current = current.getSuperclass
-
-          old
-
-        }
-          .takeWhile(x => x != null && x != classOf[ClientFaultException])
-          .map(_.getSimpleName)
-          .toList
-          .reverse
-      }
-      case e: TimeoutException => e.getClass.getSimpleName :: Nil
-      case e: Throwable => Nil
-    }
   }
 }
