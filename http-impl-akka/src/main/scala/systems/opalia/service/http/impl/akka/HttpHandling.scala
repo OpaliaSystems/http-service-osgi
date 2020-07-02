@@ -9,6 +9,7 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.StreamConverters
 import akka.util.ByteString
+import java.io.{InputStream, PipedInputStream, PipedOutputStream}
 import play.api.libs.json._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
@@ -187,6 +188,26 @@ trait HttpHandling {
         Future.successful((httpEntity, Some(checksum)))
       }
 
+      case x: StreamEntity => {
+
+        val contentType = convertFromApiContentType(x.contentType)
+
+        val httpEntity =
+          x.contentLength match {
+            case Some(length) => HttpEntity(
+              contentType = contentType,
+              contentLength = length,
+              data = StreamConverters.fromInputStream(x.fromInputStream)
+            )
+            case None => HttpEntity(
+              contentType = contentType,
+              data = StreamConverters.fromInputStream(x.fromInputStream)
+            )
+          }
+
+        Future.successful((httpEntity, None))
+      }
+
       case x: MultipartEntity => {
 
         val parts =
@@ -267,6 +288,11 @@ trait HttpHandling {
         message.discardEntityBytes()
 
         Future.successful(NoneEntity)
+      }
+
+      case EntityRequirement.Stream => {
+
+        parseBodyStreamed(message.entity, checksum)
       }
 
       case EntityRequirement.Json => {
@@ -385,6 +411,94 @@ trait HttpHandling {
 
   protected def isMultipartEntity(contentType: ContentType): Boolean =
     contentType.mediaType.withParams(Map.empty) == MediaTypes.`multipart/form-data`
+
+  protected def parseBodyStreamed(entity: HttpEntity,
+                                  checksum: Option[Checksum])
+                                 (implicit executionContext: ExecutionContext,
+                                  materializer: ActorMaterializer): Future[StreamEntity] = {
+
+    val digest = selectDigest(checksum.map(_.algorithm))
+
+    val fromInputStream = () => {
+
+      val inputStream = entity.dataBytes.runWith(StreamConverters.asInputStream())
+      val pipedInputStream = new PipedInputStream()
+      val pipedOutputStream = new PipedOutputStream(pipedInputStream)
+      val inputStreamDigester = digest.sign(pipedInputStream)
+
+      new InputStream {
+
+        override def read(): Int = {
+
+          val result = inputStream.read()
+
+          if (result >= 0) {
+
+            pipedOutputStream.write(result)
+            inputStreamDigester.readAll(onlyIfAvailable = true)
+          }
+
+          result
+        }
+
+        override def read(bytes: Array[Byte]): Int = {
+
+          val result = inputStream.read(bytes)
+
+          if (result > 0) {
+
+            pipedOutputStream.write(bytes, 0, result)
+            inputStreamDigester.readAll(onlyIfAvailable = true)
+          }
+
+          result
+        }
+
+        override def read(bytes: Array[Byte], offset: Int, length: Int): Int = {
+
+          val result = inputStream.read(bytes, offset, length)
+
+          if (result > 0) {
+
+            pipedOutputStream.write(bytes, offset, result)
+            inputStreamDigester.readAll(onlyIfAvailable = true)
+          }
+
+          result
+        }
+
+        override def available(): Int = {
+
+          inputStream.available()
+        }
+
+        override def close(): Unit = {
+
+          inputStream.close()
+          pipedOutputStream.flush()
+          pipedOutputStream.close()
+          inputStreamDigester.readAll(onlyIfAvailable = false)
+          doFinal()
+        }
+
+        private def doFinal(): Unit = {
+
+          val checksumValue = inputStreamDigester.doFinal()
+
+          if (checksum.exists(x => !x.value.sameElements(checksumValue)))
+            throw new BadRequestHttpException(ServerErrorData(messages = List(
+              "Cannot validate checksum for corrupted body.",
+            )))
+        }
+      }
+    }
+
+    Future.successful(StreamEntity(
+      convertToApiContentType(entity.contentType),
+      entity.contentLengthOption,
+      fromInputStream
+    ))
+  }
 
   protected def parseJsonBody(entity: HttpEntity,
                               checksum: Option[Checksum])

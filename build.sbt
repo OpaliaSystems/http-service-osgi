@@ -23,7 +23,7 @@ def commonSettings: Seq[Setting[_]] = {
     organizationHomepage := Some(url("https://opalia.systems")),
     organization := "systems.opalia",
     homepage := Some(url("https://github.com/OpaliaSystems/opalia-service-http")),
-    version := "1.0.0",
+    version := "1.1.0",
     scalaVersion := mScalaVersion
   )
 }

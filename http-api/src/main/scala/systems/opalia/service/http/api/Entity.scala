@@ -1,5 +1,6 @@
 package systems.opalia.service.http.api
 
+import java.io.InputStream
 import systems.opalia.interfaces.json.JsonAst
 
 
@@ -9,6 +10,11 @@ sealed trait SimpleEntity
   extends Entity
 
 case object NoneEntity
+  extends Entity
+
+case class StreamEntity(contentType: String = "",
+                        contentLength: Option[Long] = None,
+                        fromInputStream: () => InputStream)
   extends Entity
 
 case class JsonEntity(body: JsonAst.JsonObject)

@@ -5,6 +5,7 @@ import play.api.libs.json.Json
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
+import scala.io.Source
 import scala.language.postfixOps
 import systems.opalia.bootloader.ArtifactNameBuilder._
 import systems.opalia.bootloader.BootloaderBuilder
@@ -41,7 +42,7 @@ class HttpServiceTest
       .withBundle("systems.opalia" %% "vfs-backend-api" % "1.0.0")
       .withBundle("systems.opalia" %% "vfs-backend-impl-apachevfs" % "1.0.0")
       .withBundle("systems.opalia" %% "vfs-impl-frontend" % "1.0.0")
-      .withBundle("systems.opalia" %% "http-impl-akka" % "1.0.0")
+      .withBundle("systems.opalia" %% "http-impl-akka" % "1.1.0")
   }
 
   def init(config: Config): Unit = {
@@ -731,6 +732,96 @@ class HttpServiceTest
     result1._1.statusCode shouldBe 200
     result2._1.statusCode shouldBe 404
     result3._1.statusCode shouldBe 404
+
+    route.unregister()
+  }
+
+  it should "be able to stream entity bodies" in {
+
+    def echo(request: ServerRequest): Future[ServerResponse] =
+      request.handleEntity().map {
+        entity =>
+
+          ServerResponse.ok(entity = entity)
+      }
+
+    val route = httpService.newRoute("/echo", Method.post, EntityRequirement.Stream, echo)
+
+    route.register()
+
+    val content = """<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>Hello World!</body></html>"""
+    val bytes = content.getBytes(Renderer.appDefaultCharset)
+
+    val uri =
+      Uri(
+        scheme = "http",
+        authority = Some(Uri.Authority(server.hostString, server.port)),
+        path = Uri.Path("/echo", Uri.Path.Type.Regular)
+      )
+
+    val entity1 =
+      StreamEntity(
+        contentType = "text/plain; charset=UTF-8",
+        contentLength = None,
+        fromInputStream = () => new java.io.ByteArrayInputStream(bytes)
+      )
+
+    val entity2 =
+      StreamEntity(
+        contentType = "text/plain; charset=UTF-8",
+        contentLength = Some(bytes.length),
+        fromInputStream = () => new java.io.ByteArrayInputStream(bytes)
+      )
+
+    val request1 =
+      ClientRequest(
+        uri = uri.toString,
+        method = Method.post,
+        entity = entity1
+      )
+
+    val request2 =
+      ClientRequest(
+        uri = uri.toString,
+        method = Method.post,
+        entity = entity2
+      )
+
+    val response1 =
+      httpService.call(request1)
+
+    val response2 =
+      httpService.call(request2)
+
+    val result1 = Await.result(for {
+      x <- response1
+      y <- x.handleEntity(EntityRequirement.Stream).mapTo[StreamEntity]
+    } yield (x, y), 4 seconds)
+
+    val result2 = Await.result(for {
+      x <- response2
+      y <- x.handleEntity(EntityRequirement.Stream).mapTo[StreamEntity]
+    } yield (x, y), 4 seconds)
+
+    result1._1.statusCode shouldBe 200
+    result1._2.contentType shouldBe "text/plain; charset=UTF-8"
+    result1._2.contentLength shouldBe None
+
+    FileUtils.using(result1._2.fromInputStream()) {
+      stream =>
+
+        Source.fromInputStream(stream, Renderer.appDefaultCharset.name()).mkString shouldBe content
+    }
+
+    result2._1.statusCode shouldBe 200
+    result2._2.contentType shouldBe "text/plain; charset=UTF-8"
+    result2._2.contentLength shouldBe Some(bytes.length)
+
+    FileUtils.using(result2._2.fromInputStream()) {
+      stream =>
+
+        Source.fromInputStream(stream, Renderer.appDefaultCharset.name()).mkString shouldBe content
+    }
 
     route.unregister()
   }

@@ -8,6 +8,9 @@ object EntityRequirement {
   case object None
     extends EntityRequirement
 
+  case object Stream
+    extends EntityRequirement
+
   case object Json
     extends EntityRequirement
 
