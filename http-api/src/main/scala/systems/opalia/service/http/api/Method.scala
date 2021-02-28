@@ -31,6 +31,9 @@ object Method {
   val put: Method =
     new Method("PUT")
 
+  val patch: Method =
+    new Method("PATCH")
+
   val delete: Method =
     new Method("DELETE")
 
