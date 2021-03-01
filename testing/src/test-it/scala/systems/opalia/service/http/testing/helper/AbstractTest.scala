@@ -3,7 +3,9 @@ package systems.opalia.service.http.testing.helper
 import com.typesafe.config._
 import java.nio.file.{Files, Paths}
 import org.osgi.framework.BundleContext
-import org.scalatest._
+import org.scalatest.flatspec._
+import org.scalatest.matchers.should._
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import systems.opalia.bootloader.ArtifactNameBuilder._
@@ -13,7 +15,7 @@ import systems.opalia.interfaces.soa.osgi.ServiceManager
 
 
 abstract class AbstractTest
-  extends FlatSpec
+  extends AnyFlatSpec
     with BeforeAndAfterAll
     with BeforeAndAfterEach
     with Matchers {
