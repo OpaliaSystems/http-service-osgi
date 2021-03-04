@@ -17,9 +17,9 @@ final class BundleConfig(config: Config) {
 
   val akka: Config =
     ConfigFactory.parseString(s"akka.loglevel = $logLevel")
+      .withFallback(config.as[Config]("http").withOnlyPath("akka"))
       .withFallback(ConfigFactory.parseString(s"akka.http.server.server-header = $appName/$appVersion"))
       .withFallback(ConfigFactory.parseString(s"akka.http.client.user-agent-header = $appName/$appVersion"))
-      .withFallback(config.as[Config]("http").withOnlyPath("akka"))
 
   object Ssl {
 
