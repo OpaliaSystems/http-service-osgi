@@ -634,11 +634,21 @@ class HttpServiceTest
         headers = Map.empty + createIfNoneMatchHeader(entityId)
       )
 
+    val request3 =
+      ClientRequest(
+        uri = uri.toString,
+        method = Method.head,
+        headers = Map.empty + createIfNoneMatchHeader(entityId)
+      )
+
     val response1 =
       httpService.call(request1)
 
     val response2 =
       httpService.call(request2)
+
+    val response3 =
+      httpService.call(request3)
 
     val result1 = Await.result(for {
       x <- response1
@@ -650,6 +660,11 @@ class HttpServiceTest
       y <- x.handleEntity(EntityRequirement.None)
     } yield (x, y), 4 seconds)
 
+    val result3 = Await.result(for {
+      x <- response3
+      y <- x.handleEntity(EntityRequirement.None)
+    } yield (x, y), 4 seconds)
+
     result1._1.statusCode shouldBe 200
     getEntityTag(result1._1.headers, clientSide = true) shouldBe Some(entityId)
     result1._2.contentType shouldBe "text/plain; charset=UTF-8"
@@ -657,6 +672,9 @@ class HttpServiceTest
 
     result2._1.statusCode shouldBe 304
     getEntityTag(result2._1.headers, clientSide = true) shouldBe Some(entityId)
+
+    result3._1.statusCode shouldBe 304
+    getEntityTag(result3._1.headers, clientSide = true) shouldBe Some(entityId)
 
     route.unregister()
   }
